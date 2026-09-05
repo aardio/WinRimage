@@ -1,0 +1,7 @@
+import rimage.clipboard;
+import util.testRunner;
+var $ = util.testRunner("WinRimage clipboard module");
+$.test(type(rimage.clipboard.read)=="function","clipboard.read 可用");
+$.test(type(rimage.clipboard.write)=="function","clipboard.write 可用");
+$.test(type(rimage.clipboard.writePng)=="function","clipboard.writePng 可用");
+return $.report();

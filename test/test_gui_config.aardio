@@ -1,0 +1,38 @@
+import rimage.guiModel;
+import process.rimage;
+import util.testRunner;
+
+var $=util.testRunner("WinRimage GUI config model");
+var model=rimage.guiModel.create();
+
+var disabled=rimage.guiModel.makeConfig(model,{
+    encoder="mozjpeg";
+    outputDirectory="C:\temp";
+    quality="75";
+    quantizationEnabled=false;
+    dithering="0"
+});
+$.expect(disabled.quantization,null,"关闭量化");
+$.expect(disabled.dithering,null,"关闭抖动");
+var args,err=process.rimage.buildArgs(disabled,["C:\input.jpg"]);
+$.test(args!=null,"关闭量化参数可构建",err);
+
+var enabled=rimage.guiModel.makeConfig(model,{
+    encoder="mozjpeg";
+    outputDirectory="C:\temp";
+    quality="75";
+    resizeMode="width";
+    resizeValue="1200";
+    resizeFilter="lanczos3";
+    quantizationEnabled=true;
+    quantization="100";
+    dithering="100"
+});
+$.expect(enabled.resize,["1200w"],"宽度缩放参数");
+$.expect(enabled.filter,"lanczos3","缩放算法");
+$.expect(enabled.quantization,100,"量化值");
+$.expect(enabled.dithering,100,"抖动值");
+args,err=process.rimage.buildArgs(enabled,["C:\input.jpg"]);
+$.test(args!=null,"启用预处理参数可构建",err);
+
+return $.report();

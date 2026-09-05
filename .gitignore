@@ -1,0 +1,20 @@
+﻿/.build/default.main.aardio
+/.build/default.Manifest.xml
+/.build/update-maker.table
+/.build/update-maker.aardio
+/.update-files/
+dist/
+.build/default.init.aardio
+.build/mp.lock
+/.imtip
+
+# Autos / aardio 临时备份
+*.aa.bak.*
+*.aa.rbk.*
+
+# 本地测试输出
+/smoke-output/
+/smoke-output-2/
+/smoke-output-final/
+/test-output/
+/output/

@@ -1,0 +1,60 @@
+namespace rimage.uiValues;
+
+var resizeModeMap = {
+    ["原尺寸"]="original";
+    ["宽度"]="width";
+    ["高度"]="height";
+    ["最长边"]="longest";
+    ["最短边"]="shortest";
+    ["百分比"]="percent";
+    ["倍数"]="multiplier";
+    ["固定尺寸"]="fixed"
+};
+
+var resizeDirectionMap = {
+    ["允许放大与缩小"]="both";
+    ["仅缩小，不放大"]="reduceOnly";
+    ["仅放大，不缩小"]="enlargeOnly"
+};
+
+read = function(form){
+    var resizeMode=resizeModeMap[form.resizeMode.selText] : "original";
+    var resizeDirection=resizeDirectionMap[form.resizeDirection.selText] : "both";
+    return {
+        encoder=form.encoder.selText;
+        quality=form.quality.disabled ? null : form.quality.text;
+        resizeMode=resizeMode;
+        resizeValue=form.resizeValue.text;
+        resizeFilter=form.resizeFilter.selText;
+        resizeDirection=resizeDirection;
+        quantizationEnabled=form.quantizationEnabled.checked;
+        quantization=form.quantization.text;
+        dithering=form.dithering.disabled ? null : form.dithering.text;
+        outputDirectory=form.outputDir.text;
+        suffix=form.suffix.text;
+        preserveStructure=form[ ["preserve"] ] ? form.preserve.checked : false;
+        stripMetadata=form[ ["strip"] ] ? form.strip.checked : false;
+        threads=form[ ["threads"] ] ? form.threads.text : 1
+    };
+};
+
+syncEncoder = function(form){
+    var encoder=form.encoder.selText;
+    var lossless=encoder=="png" || encoder=="oxipng" || encoder=="jpeg_xl" || encoder=="qoi" || encoder=="ppm" || encoder=="farbfeld";
+    form.quality.disabled=lossless;
+    form.qualityLabel.text=lossless ? "质量（无损）" : "质量";
+    if(lossless) form.quality.text="";
+    elseif(!#form.quality.text) form.quality.text="75";
+    return lossless;
+};
+
+syncPreprocess = function(form){
+    var enabled=form.quantizationEnabled.checked;
+    form.quantization.disabled=!enabled;
+    form.dithering.disabled=!enabled;
+    form.quantizationLabel.text="量化程度";
+    return enabled;
+};
+
+namespace rimage.uiValues {
+}

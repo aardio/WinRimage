@@ -1,0 +1,23 @@
+import util.testRunner;
+import rimage.guiModel;
+
+var $=util.testRunner("WinRimage GUI model");
+var model=rimage.guiModel.create();
+$.test(type(model.files)=="table" && #model.files==0,"创建空队列");
+var added=rimage.guiModel.addFiles(model,["C:\\does-not-exist.png"]);
+$.expect(added,0,"拒绝不存在的输入");
+var c=rimage.guiModel.makeConfig(model,{encoder="mozjpeg";outputDirectory="C:\\temp";suffix="updated";quality="80"});
+$.expect(c.encoder,"mozjpeg","生成默认编码器配置");
+$.expect(c.quality,80,"转换质量文本");
+
+var rows=rimage.guiModel.fileRows(model);
+$.expect(#rows,0,"空队列返回空列表");
+$.test(model.statuses!=null,"模型创建状态表");
+$.test(rimage.guiModel.setAllStatus(model,"处理中"),"批量更新状态");
+
+var fixture=io.fullpath("/images/test-fixture.png");
+$.expect(rimage.guiModel.normalizePath(" " ++ fixture ++ " "),fixture,"清理拖放路径首尾空格");
+$.expect(rimage.guiModel.normalizePath('"' ++ fixture ++ '"'),fixture,"清理拖放路径外层引号");
+$.expect(rimage.guiModel.addFiles(model,[" " ++ fixture ++ " "]),1,"规范化路径后加入文件");
+$.expect(rimage.guiModel.addFiles(model,['"' ++ fixture ++ '"']),0,"规范化路径后保持去重");
+return $.report();

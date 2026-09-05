@@ -1,0 +1,359 @@
+import fsys;
+import fsys.path;
+import process.popen;
+import thread.table;
+import JSON;
+
+namespace process.rimage;
+
+/*****intellisense()
+process.rimage = WinRimage 的 rimage 0.13.0 模型、参数与安全计划库。
+process.rimage.version = 库版本。
+process.rimage.defaultConfig() = 返回新的默认配置。
+process.rimage.codecs() = 返回编码器能力表。
+process.rimage.normalizeConfig(config) = 复制并补齐配置默认值。
+process.rimage.validateConfig(config) = 校验配置，成功返回规范化配置，失败返回 null 和错误表。
+process.rimage.buildArgs(config,files) = 生成供 process.popen 使用的参数数组。
+process.rimage.plan(config,files) = 计算输出映射和安全风险，不启动进程。
+process.rimage.detect(exePath) = 调用 rimage --version，返回可执行文件和版本信息。
+process.rimage.run(config,files,options) = 先执行安全计划，再通过 process.popen 同步处理并返回结果；未指定 metadataPath 时自动使用临时 JSON。
+process.rimage.runAsync(config,files,options) = 在独立工作线程中执行 rimage，返回 task；GUI 通过 task.snapshot() 查询状态，通过 task.cancel() 取消。
+end intellisense*****/
+
+version = "0.1.0";
+
+var codecTable = {
+    mozjpeg={name="mozjpeg";extension="jpg";quality=true;qualityDefault=75;qualityMin=1;qualityMax=100};
+    jpeg={name="jpeg";extension="jpg";quality=true;qualityMin=1;qualityMax=100};
+    webp={name="webp";extension="webp";quality=true;qualityDefault=75;qualityMin=1;qualityMax=100;lossless=true};
+    avif={name="avif";extension="avif";quality=true;qualityDefault=50;qualityMin=1;qualityMax=100;speed=true};
+    jpeg_xl={name="jpeg_xl";extension="jxl";quality=false};
+    png={name="png";extension="png";quality=false;lossless=true};
+    oxipng={name="oxipng";extension="png";quality=false;lossless=true;effort=true;effortMin=0;effortMax=6};
+    qoi={name="qoi";extension="qoi";quality=false;lossless=true};
+    ppm={name="ppm";extension="ppm";quality=false;lossless=true};
+    farbfeld={name="farbfeld";extension="farbfeld";quality=false;lossless=true}
+};
+
+var cloneCodecs = function(){
+    var result={};
+    for(name,value in codecTable) result[name]=..table.clone(value);
+    return result;
+};
+codecs = function(){ return cloneCodecs(); };
+
+defaultConfig = function(){
+    return {
+        encoder="mozjpeg"; outputDirectory=null; suffix="updated";
+        preserveStructure=false; overwrite=false; stripMetadata=false;
+        threads=1; noProgress=true; quiet=true; metadataPath=null;
+        resize=[]; upscale=true; downscale=true; filter="lanczos3";
+        quality=75; chromaQuality=null; baseline=false; noOptimizeCoding=false;
+        smoothing=null; colorspace="ycbcr"; multipass=false; subsample=null;
+        qtable="NRobidoux"; lossless=false; slightLoss=0; discrete=false; exact=false;
+        alphaQuality=null; speed=6; alphaMode="UnassociatedClean";
+        effort=2; interlace=false; quantization=null; dithering=null; premultiply=false
+    };
+};
+
+var copyConfig = function(config){
+    var result=defaultConfig();
+    if(config){
+        for(k,v in config) result[k]=v;
+        if(config.resize) result.resize=..table.clone(config.resize);
+    }
+    var codec=codecTable[result.encoder];
+    if(codec && !codec.quality) result.quality=null;
+    if(result.encoder=="webp" && result.lossless) result.quality=null;
+    return result;
+};
+
+var integerRange = function(v,a,b){ return type(v)=="number" && v%1==0 && v>=a && v<=b; };
+var validFilter = function(v){ return v=="nearest" || v=="box" || v=="bilinear" || v=="hamming" || v=="catmull-rom" || v=="mitchell" || v=="lanczos3"; };
+var validColorspace = function(v){ return v=="ycbcr" || v=="grayscale" || v=="rgb"; };
+var validResize = function(v){ return type(v)=="string" && (..string.match(v,"^[0-9]+x[0-9]+$") || ..string.match(v,"^[0-9]+[whls@%]$")); };
+var validSuffix = function(v){
+    if(type(v)!="string" || #v>120) return false;
+    for(i=1;#v){
+        var c=v[[i]];
+        if(v[i]<32 || c=="\" || c=="/" || c==":" || c=="*" || c=="?" || c=='"' || c=="<" || c==">" || c=="|") return false;
+    }
+    return true;
+};
+
+normalizeConfig = function(config){
+    var result=copyConfig(config);
+    if(result.outputDirectory) result.outputDirectory=..io.fullpath(result.outputDirectory);
+    if(result.metadataPath) result.metadataPath=..io.fullpath(result.metadataPath);
+    return result;
+};
+
+validateConfig = function(config){
+    var result=normalizeConfig(config),codec=codecTable[result.encoder];
+    if(!codec) return null,{code="encoder";message="不支持的输出编码器: " ++ tostring(result.encoder)};
+    if(!result.outputDirectory) return null,{code="outputDirectory";message="必须指定独立输出目录"};
+    if(!integerRange(result.threads,1,255)) return null,{code="threads";message="threads 必须为 1 到 255 的整数"};
+    if(!validSuffix(result.suffix)) return null,{code="suffix";message="suffix 包含 Windows 文件名禁止字符"};
+    if(result.filter && !validFilter(result.filter)) return null,{code="filter";message="未知 resize filter"};
+    if(result.quality!=null && (!codec.quality || !integerRange(result.quality,codec.qualityMin,codec.qualityMax))) return null,{code="quality";message="当前编码器不支持或拒绝 quality"};
+    if(result.encoder=="webp" && result.lossless && result.quality!=null) return null,{code="quality";message="webp lossless 与 quality 互斥"};
+    if(result.encoder=="avif" && !integerRange(result.speed,1,10)) return null,{code="speed";message="avif speed 必须为 1 到 10"};
+    if(result.encoder=="oxipng" && !integerRange(result.effort,0,6)) return null,{code="effort";message="oxipng effort 必须为 0 到 6"};
+    if(result.colorspace && !validColorspace(result.colorspace)) return null,{code="colorspace";message="未知颜色空间"};
+    if(result.quantization!=null && !integerRange(result.quantization,1,100)) return null,{code="quantization";message="quantization 必须为 1 到 100"};
+    if(result.dithering!=null && !integerRange(result.dithering,1,100)) return null,{code="dithering";message="dithering 必须为 1 到 100"};
+    if(result.dithering!=null && result.quantization==null) return null,{code="dithering";message="dithering 必须和 quantization 一起使用"};
+    for(i,v in result.resize) if(!validResize(v)) return null,{code="resize";index=i;message="无效 resize 值: " ++ tostring(v)};
+    return result;
+};
+
+var addValue = function(args,name,value){ if(value!=null) ..table.push(args,name ++ "=" ++ tostring(value)); };
+
+buildArgs = function(config,files){
+    var c,err=validateConfig(config);
+    if(!c) return null,err;
+    var args=[c.encoder];
+    ..table.push(args,"--directory=" ++ c.outputDirectory);
+    if(c.preserveStructure) ..table.push(args,"--recursive");
+    if(c.suffix!=null) ..table.push(args,"--suffix=" ++ c.suffix);
+    ..table.push(args,"--threads=" ++ tostring(c.threads));
+    if(c.stripMetadata) ..table.push(args,"--strip");
+    if(c.noProgress) ..table.push(args,"--no-progress");
+    if(c.quiet) ..table.push(args,"--quiet");
+    if(c.metadataPath) ..table.push(args,"--metadata=" ++ c.metadataPath);
+    for(i,v in c.resize) ..table.push(args,"--resize=" ++ v);
+    if(#c.resize){
+        if(!c.upscale) ..table.push(args,"--no-upscale");
+        if(!c.downscale) ..table.push(args,"--no-downscale");
+        addValue(args,"--filter",c.filter);
+    }
+    addValue(args,"--quantization",c.quantization); addValue(args,"--dithering",c.dithering);
+    if(c.premultiply) ..table.push(args,"--premultiply");
+    if(c.encoder=="mozjpeg" || c.encoder=="jpeg"){
+        addValue(args,"--quality",c.quality); addValue(args,"--chroma_quality",c.chromaQuality);
+        if(c.baseline) ..table.push(args,"--baseline");
+        if(c.noOptimizeCoding) ..table.push(args,"--no_optimize_coding");
+        addValue(args,"--smoothing",c.smoothing); addValue(args,"--colorspace",c.colorspace);
+        if(c.multipass) ..table.push(args,"--multipass");
+        addValue(args,"--subsample",c.subsample); addValue(args,"--qtable",c.qtable);
+    }
+    elseif(c.encoder=="webp"){
+        if(c.lossless) ..table.push(args,"--lossless"); else addValue(args,"--quality",c.quality);
+        if(c.lossless && c.slightLoss!=null) addValue(args,"--slight_loss",c.slightLoss);
+        if(c.lossless && c.discrete) ..table.push(args,"--discrete");
+        if(c.exact) ..table.push(args,"--exact");
+    }
+    elseif(c.encoder=="avif"){
+        addValue(args,"--quality",c.quality); addValue(args,"--alpha_quality",c.alphaQuality);
+        addValue(args,"--speed",c.speed); addValue(args,"--colorspace",c.colorspace); addValue(args,"--alpha_mode",c.alphaMode);
+    }
+    elseif(c.encoder=="oxipng"){
+        addValue(args,"--effort",c.effort); if(c.interlace) ..table.push(args,"--interlace");
+    }
+    ..table.push(args,"--");
+    for(i,file in files) ..table.push(args,..io.fullpath(file));
+    return args;
+};
+
+var pathKey = function(path){ return ..string.lower(..fsys.path.canonicalize(..io.fullpath(path))); };
+
+var commonInputRoot = function(inputs){
+    if(!#inputs) return null;
+    var root = ..io.splitpath(inputs[1]).dir;
+    for(i=2,#inputs){
+        root = ..fsys.path.commonPrefix(root,..io.splitpath(inputs[i]).dir);
+        if(!root) return null;
+    }
+    return root;
+};
+
+detect = function(exePath){
+    var fullPath=exePath && ..io.fullpath(exePath);
+    if(!fullPath || !..fsys.isFile(fullPath)) return null,{code="executable";path=fullPath;message="rimage 可执行文件不存在"};
+    var p,createError,createCode = ..process.popen(fullPath,["--version"],{
+        waitInputTimeout=0;
+        environment={RUST_LOG="warn";RUST_LOG_STYLE="never";NO_COLOR="1"}
+    });
+    if(!p) return null,{code="createProcess";path=fullPath;message=createError;nativeCode=createCode};
+    p.codepage=65001;
+    p.writeClose();
+    var output,stderr,exitCode = p.readAll();
+    if(exitCode!=0) return null,{code="version";path=fullPath;message=stderr : output;exitCode=exitCode};
+    var version = ..string.trim(output : stderr : "");
+    return {path=fullPath;version=version;exitCode=exitCode;output=output;stderr=stderr};
+};
+
+plan = function(config,files){
+    var c,err=validateConfig(config);
+    if(!c) return null,err;
+    if(type(files)!="table" || !#files) return null,{code="inputs";message="至少需要一个输入文件"};
+    var inputs=[],inputKeys={},outputs=[],outputKeys={},errors=[],warnings=[];
+    for(i,file in files){
+        if(type(file)!="string" || !#file){ ..table.push(errors,{code="input";index=i;message="输入路径为空"}); continue; }
+        var full=..io.fullpath(file),key=pathKey(full);
+        if(inputKeys[key]) ..table.push(errors,{code="duplicateInput";path=full;message="输入文件重复"});
+        inputKeys[key]=true;
+        if(!..fsys.isFile(full)) ..table.push(errors,{code="missingInput";path=full;message="输入文件不存在"});
+        ..table.push(inputs,full);
+    }
+    var codec=codecTable[c.encoder];
+    var root = c.preserveStructure ? commonInputRoot(inputs) : null;
+    for(i,input in inputs){
+        var pi=..io.splitpath(input);
+        var relativeDir = root ? ..string.slice(pi.dir,#root+1) : "";
+        var outDir = relativeDir && #relativeDir ? ..io.joinpath(c.outputDirectory,relativeDir) : c.outputDirectory;
+        var out=..io.joinpath(outDir,pi.name ++ c.suffix ++ "." ++ codec.extension),key=pathKey(out);
+        if(outputKeys[key]) ..table.push(errors,{code="duplicateOutput";path=out;message="多个输入映射到同一输出"});
+        outputKeys[key]=true;
+        if(inputKeys[key]) ..table.push(errors,{code="overwriteInput";path=out;message="输出路径覆盖输入文件"});
+        if(!c.overwrite && ..fsys.isFile(out)) ..table.push(errors,{code="existingOutput";path=out;message="输出文件已存在"});
+        ..table.push(outputs,{input=input;output=out;relativeDirectory=relativeDir;exists=..fsys.isFile(out)});
+    }
+    if(c.metadataPath){
+        var mk=pathKey(c.metadataPath);
+        if(inputKeys[mk]) ..table.push(errors,{code="metadataInputCollision";path=c.metadataPath;message="metadata 路径不能覆盖输入文件"});
+        if(outputKeys[mk]) ..table.push(errors,{code="metadataOutputCollision";path=c.metadataPath;message="metadata 路径不能覆盖输出文件"});
+        if(..fsys.isFile(c.metadataPath)) ..table.push(errors,{code="metadataExists";path=c.metadataPath;message="metadata 文件已存在"});
+    }
+    if(c.overwrite) ..table.push(warnings,{code="overwrite";message="已允许覆盖已有输出文件"});
+    return {config=c;inputs=inputs;outputs=outputs;warnings=warnings;errors=errors;commonRoot=root;safe=#errors==0;};
+};
+
+runAsync = function(config,files,options){
+    options := {};
+    var id = "WinRimage.task." ++ tostring(..time.stamp()) ++ "." ++ tostring(..math.random(1,1000000));
+    var state = ..thread.var(id ++ ".state","created");
+    var cancelled = ..thread.var(id ++ ".cancelled",false);
+    var snapshot = ..thread.table(id ++ ".snapshot",true);
+    var launchConfig = ..table.clone(config : {});
+    var exePath = options.exePath : options.executable;
+    if(!exePath){
+        state.set("failed"); snapshot.set("error",{code="executable";message="未指定 rimage 可执行文件"});
+    }
+    else{
+        ..thread.invoke(function(config,files,options,state,cancelled,snapshot){
+            import process.rimage;
+            import process.popen;
+            var c = ..table.clone(config : {});
+            var userMetadata = c.metadataPath!=null;
+            if(!userMetadata) c.metadataPath=..io.tmpname("WinRimage-",".json");
+            var pinfo,planError=process.rimage.plan(c,files);
+            if(!pinfo){ state.set("failed"); snapshot.set("error",planError); return; }
+            snapshot.set("plan",pinfo);
+            if(!pinfo.safe){ state.set("failed"); snapshot.set("error",{code="unsafePlan";message="执行计划未通过安全检查";plan=pinfo}); return; }
+            var args,argError=process.rimage.buildArgs(pinfo.config,pinfo.inputs);
+            if(!args){ state.set("failed"); snapshot.set("error",argError); return; }
+            var p,createError,createCode=process.popen(options.exePath,args,{workDir=options.workDir : ..io.fullpath("/");waitInputTimeout=0;environment={RUST_LOG="warn";RUST_LOG_STYLE="never";NO_COLOR="1"}});
+            if(!p){ state.set("failed"); snapshot.set("error",{code="createProcess";message=createError;nativeCode=createCode}); return; }
+            p.codepage=65001; p.writeClose(); state.set("running");
+            var allText="",outText="",errText="",cancelSent=false,started=..time.tick();
+            var code;
+            // each() 无输出时不让出控制；可取消任务必须独立检查进程与取消信号。
+            while(true){
+                var out,err=p.peek(0);
+                if(#out || #err){
+                    allText=..string.right(..string.concat(allText,out,err),262144);
+                    outText=..string.right(..string.concat(outText,out),262144);
+                    errText=..string.right(..string.concat(errText,err),262144);
+                    snapshot.set("output",allText); snapshot.set("stdout",outText); snapshot.set("stderr",errText);
+                }
+                var exited;
+                code,exited=p.getExitCode();
+                if(exited){
+                    out,err=p.peek(0);
+                    allText=..string.right(..string.concat(allText,out,err),262144);
+                    outText=..string.right(..string.concat(outText,out),262144);
+                    errText=..string.right(..string.concat(errText,err),262144);
+                    p.close(); break;
+                }
+                if(cancelled.get()){
+                    cancelSent=true; state.set("cancelling"); p.terminate(); code=null; break;
+                }
+                ..thread.delay(20);
+            }
+            var final={exitCode=code;elapsedMs=..time.tick()-started;metadataPath=c.metadataPath;metadataTemporary=!userMetadata;outputs=pinfo.outputs;stdout=outText;stderr=errText;output=allText;cancelled=cancelSent;};
+            final.metadataExists=..fsys.isFile(c.metadataPath);
+            if(final.metadataExists) final.metadata=..JSON.load(c.metadataPath);
+            var successCount=0;
+            for(i,item in final.outputs){ item.exists=..fsys.isFile(item.output); if(item.exists){item.size=..io.getSize(item.output);successCount++;} }
+            final.successCount=successCount; final.failedCount=#final.outputs-successCount;
+            if(cancelSent) final.state="cancelled";
+            elseif(code==0 && final.failedCount==0) final.state="completed";
+            else final.state="completedWithErrors";
+            if(final.metadataTemporary && final.metadataExists) ..io.remove(c.metadataPath);
+            snapshot.set("result",final); state.set(final.state);
+        },launchConfig,files,{exePath=exePath;workDir=options.workDir : null},state,cancelled,snapshot);
+    }
+    var task,closed=false;
+    task = {
+        id=id;
+        snapshot=function(){
+            var result={state=state.get();};
+            result.error=snapshot.get("error"); result.plan=snapshot.get("plan"); result.output=snapshot.get("output");
+            result.stdout=snapshot.get("stdout"); result.stderr=snapshot.get("stderr");
+            var final=snapshot.get("result"); if(final) result.result=final;
+            return result;
+        };
+        cancel=function(){ cancelled.set(true); return true; };
+        wait=function(timeout){
+            var deadline=timeout ? ..time.tick()+timeout : null;
+            while(true){
+                var s=state.get();
+                if(s=="completed" || s=="completedWithErrors" || s=="cancelled" || s=="failed") return task.snapshot();
+                if(deadline && ..time.tick()>deadline) return null,{code="timeout";message="task wait timeout"};
+                ..thread.delay(10);
+            }
+        };
+        close=function(){
+            if(closed) return true;
+            var s=state.get();
+            if(s=="created" || s=="starting" || s=="running" || s=="cancelling") return null,{code="busy";message="请先取消并等待任务终态"};
+            state.release(); cancelled.release(); snapshot.release(); closed=true; return true;
+        }
+    };
+    return task;
+};
+
+run = function(config,files,options){
+    options := {};
+    var c = ..table.clone(config : {});
+    var userMetadata = c.metadataPath!=null;
+    if(!userMetadata) c.metadataPath=..io.tmpname("WinRimage-",".json");
+    var pinfo,planError = plan(c,files);
+    if(!pinfo) return null,planError;
+    if(!pinfo.safe) return null,{code="unsafePlan";message="执行计划未通过安全检查";plan=pinfo};
+    var exePath=options.exePath : options.executable;
+    if(!exePath) return null,{code="executable";message="未指定 rimage 可执行文件"};
+    exePath=..io.fullpath(exePath);
+    if(!..fsys.isFile(exePath)) return null,{code="executable";path=exePath;message="rimage 可执行文件不存在: " ++ exePath};
+    var args,argError=buildArgs(pinfo.config,pinfo.inputs);
+    if(!args) return null,argError;
+    var started=..time.tick();
+    var p,createError,createCode=..process.popen(exePath,args,{
+        workDir=options.workDir : ..io.fullpath("/");
+        waitInputTimeout=0;
+        environment={RUST_LOG="warn";RUST_LOG_STYLE="never";NO_COLOR="1"}
+    });
+    var result={state="starting";plan=pinfo;args=args;metadataPath=c.metadataPath;metadataTemporary=!userMetadata;output="";stderr="";exitCode=null;elapsedMs=0;outputs=pinfo.outputs;};
+    if(!p){
+        result.state="failed"; result.createError=createError; result.createErrorCode=createCode;
+        return result;
+    }
+    p.codepage=65001;
+    p.writeClose();
+    result.state="running";
+    result.output,result.stderr,result.exitCode=p.readAll();
+    result.elapsedMs=..time.tick()-started;
+    result.metadataExists=..fsys.isFile(c.metadataPath);
+    if(result.metadataExists) result.metadata=..JSON.load(c.metadataPath);
+    var successCount=0;
+    for(i,item in result.outputs){
+        item.exists=..fsys.isFile(item.output);
+        if(item.exists){ item.size=..io.getSize(item.output); successCount++; }
+    }
+    result.successCount=successCount;
+    result.failedCount=#result.outputs-successCount;
+    result.state=(result.exitCode==0 && result.failedCount==0) ? "completed" : "completedWithErrors";
+    if(result.metadataTemporary && result.metadataExists) ..io.remove(c.metadataPath);
+    return result;
+};

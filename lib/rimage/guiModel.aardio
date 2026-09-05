@@ -1,0 +1,231 @@
+import fsys;
+import fsys.path;
+import process.rimage;
+
+namespace rimage.guiModel;
+
+/*****intellisense()
+rimage.guiModel = WinRimage GUI MVP 的纯数据模型。
+rimage.guiModel.create() = 创建队列与配置模型。
+rimage.guiModel.addFiles(model,files) = 添加图片文件并自动去重。
+rimage.guiModel.addDirectory(model,dir) = 递归添加目录中的支持图片。
+rimage.guiModel.addInputs(model,paths) = 统一添加文件或目录，返回新增数量与是否包含目录。
+rimage.guiModel.isSupportedImage(path) = 检查路径是否为支持的图片文件。
+rimage.guiModel.removeAt(model,index) = 移除指定队列项。
+rimage.guiModel.clear(model) = 清空输入队列。
+rimage.guiModel.makeConfig(model,values) = 从界面值生成 process.rimage 配置。
+rimage.guiModel.plan(model,values) = 生成执行计划。
+end intellisense*****/
+
+var extensionTable = {
+    jpg=true; jpeg=true; png=true; webp=true; avif=true; jxl=true;
+    bmp=true; gif=true; tiff=true; tif=true; qoi=true; ppm=true; farbfeld=true
+};
+
+normalizePath = function(path){
+    if(type(path)!="string") return null;
+    var text=..string.trim(path);
+    if(#text>=2 && text[[1]]=='"' && text[[#text]]=='"'){
+        text=..string.trim(..string.slice(text,2,#text-1));
+    }
+    if(!#text) return null;
+    return ..io.fullpath(text);
+};
+
+normalizeInputs = function(paths){
+    var result=[];
+    if(type(paths)=="string") paths=[paths];
+    if(type(paths)!="table") return result;
+    for(i,path in paths){
+        var full=normalizePath(path);
+        if(full) ..table.push(result,full);
+    }
+    return result;
+};
+
+var pathKey = function(path){
+    return ..string.lower(..fsys.path.canonicalize(..io.fullpath(path)));
+};
+
+var isImageFile = function(path){
+    path=normalizePath(path);
+    if(!path || !..fsys.isFile(path)) return false;
+    var info=..io.splitpath(path),ext=..string.lower(info.ext : "");
+    if(ext[[1]]==".") ext=..string.slice(ext,2,-1);
+    return extensionTable[ext]===true;
+};
+
+isSupportedImage = function(path){ return isImageFile(path); };
+
+create = function(){
+    return {files=[];keys={};statuses={};selected=0;lastPlan=null;lastResult=null};
+};
+
+addFile = function(model,path){
+    path=normalizePath(path);
+    if(!model || !path || !isImageFile(path)) return false;
+    var full=path,key=pathKey(full);
+    if(model.keys[key]) return false;
+    model.keys[key]=true;
+    model.statuses[key]="待处理";
+    ..table.push(model.files,full);
+    return true;
+};
+
+addFiles = function(model,files){
+    var added=0;
+    if(type(files)=="string") files=[files];
+    if(type(files)!="table") return 0;
+    for(i,path in files) if(addFile(model,path)) added++;
+    return added;
+};
+
+addDirectory = function(model,dir){
+    var added=0;
+    dir=normalizePath(dir);
+    if(!dir || !..fsys.isDir(dir)) return 0;
+    ..fsys.enum(dir,"*.*",function(dirname,filename,fullpath,findData){
+        if(filename && addFile(model,fullpath)) added++;
+    },true);
+    return added;
+};
+
+addInputs = function(model,paths){
+    paths=normalizeInputs(paths);
+    if(type(paths)!="table") return 0,false;
+    var added=0,hasDirectory=false;
+    for(i,path in paths){
+        if(..fsys.isDir(path)){
+            hasDirectory=true;
+            added += addDirectory(model,path);
+        }
+        elseif(addFile(model,path)) added++;
+    }
+    return added,hasDirectory;
+};
+
+removeAt = function(model,index){
+    if(!model || type(index)!="number" || index<1 || index>#model.files) return false;
+    var path=model.files[index],key=pathKey(path);
+    model.keys[key]=null;
+    model.statuses[key]=null;
+    ..table.remove(model.files,index);
+    if(model.selected>#model.files) model.selected=#model.files;
+    return true;
+};
+
+clear = function(model){
+    model.files=[]; model.keys={}; model.statuses={}; model.selected=0;
+    model.lastPlan=null; model.lastResult=null;
+    return true;
+};
+
+setAllStatus = function(model,status){
+    if(!model) return false;
+    for(i,path in model.files) model.statuses[pathKey(path)]=status;
+    return true;
+};
+
+applyResult = function(model,result){
+    if(!model || !result) return false;
+    for(i,item in result.outputs){
+        var key=pathKey(item.input);
+        if(item.exists) model.statuses[key]="已完成";
+        elseif(result.cancelled) model.statuses[key]="已取消";
+        else model.statuses[key]="失败";
+    }
+    model.lastResult=result;
+    return true;
+};
+
+var optionalNumber = function(value){
+    if(value===null || value===false) return null;
+    if(type(value)=="string"){
+        value=..string.trim(value);
+        if(!#value) return null;
+    }
+    var number=tonumber(value);
+    return number===null ? value : number;
+};
+
+var resizeValues = function(values){
+    if(type(values.resize)=="table") return ..table.clone(values.resize);
+    if(type(values.resize)=="string" && #..string.trim(values.resize)) return [..string.trim(values.resize)];
+    var mode=values.resizeMode : "original";
+    if(mode=="original") return [];
+    var value=..string.trim(tostring(values.resizeValue : ""));
+    if(!#value) return [];
+    select(mode){
+        case "width" { return [value ++ "w"]; }
+        case "height" { return [value ++ "h"]; }
+        case "longest" { return [value ++ "l"]; }
+        case "shortest" { return [value ++ "s"]; }
+        case "percent" { return [value ++ "%"]; }
+        case "multiplier" { return ["@" ++ value]; }
+        case "fixed" { return [value]; }
+        else { return [value]; }
+    }
+};
+
+makeConfig = function(model,values){
+    values := {};
+    var c=..process.rimage.defaultConfig();
+    c.encoder=values.encoder : "mozjpeg";
+    c.outputDirectory=values.outputDirectory;
+    c.suffix=values.suffix===null ? "-optimized" : values.suffix;
+    c.preserveStructure=values.preserveStructure===true;
+    c.stripMetadata=values.stripMetadata===true;
+    c.threads=optionalNumber(values.threads : 1);
+    if(values.quality===null) c.quality=null;
+    else c.quality=optionalNumber(values.quality : 75);
+    c.noProgress=true; c.quiet=true; c.overwrite=false;
+    c.resize=resizeValues(values);
+    c.filter=values.resizeFilter : values.filter : "lanczos3";
+    var direction=values.resizeDirection : "both";
+    c.upscale=direction!="reduceOnly";
+    c.downscale=direction!="enlargeOnly";
+    if(values.quantizationEnabled){
+        c.quantization=optionalNumber(values.quantization);
+        c.dithering=optionalNumber(values.dithering : 100);
+    }
+    else{
+        c.quantization=null;
+        c.dithering=null;
+    }
+    c.premultiply=values.premultiply===true;
+    c.lossless=values.lossless===true;
+    if(values.speed!==null) c.speed=optionalNumber(values.speed);
+    if(values.effort!==null) c.effort=optionalNumber(values.effort);
+    return c;
+};
+
+plan = function(model,values){
+    var c=makeConfig(model,values);
+    var p,err=..process.rimage.plan(c,model.files);
+    if(p) model.lastPlan=p;
+    return p,err;
+};
+
+formatBytes = function(bytes){
+    if(bytes==null) return "-";
+    if(bytes<1024) return tostring(bytes) ++ " B";
+    if(bytes<1024*1024) return ..string.format("%.1f KB",bytes/1024);
+    return ..string.format("%.2f MB",bytes/(1024*1024));
+};
+
+fileRows = function(model){
+    var rows=[];
+    if(!model || type(model.files)!="table") return rows;
+    for(i,path in model.files){
+        var info=..io.splitpath(path);
+        rows[i]=[info.file : path;formatBytes(..io.getSize(path));model.statuses[pathKey(path)] : "待处理"];
+    }
+    return rows;
+};
+
+summary = function(model){
+    return {files=#model.files;inputBytes=0;outputBytes=0;inputText=tostring(#model.files) ++ " 个文件";outputText="-"};
+};
+
+namespace rimage.guiModel {
+}

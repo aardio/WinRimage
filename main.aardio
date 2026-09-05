@@ -1,0 +1,82 @@
+import win.ui;
+import win.ui.tabs;
+import win.ui.simpleWindow3;
+import fonts.fontAwesome;
+import fsys;
+import rimage.guiModel;
+
+/* WinRimage 主壳：单图处理与批量处理两个互不干扰的工作区。 */
+/*DSG{{*/
+mainForm = win.form(text="WinRimage";right=1220;bottom=760;bgcolor=0xF4F6FA;border="none")
+mainForm.add(
+header={cls="bkplus";left=0;top=0;right=1220;bottom=48;bgcolor=0x243447;dl=1;dr=1;dt=1;z=1};
+tabBar={cls="bkplus";left=0;top=48;right=1220;bottom=84;bgcolor=0xFFFFFF;dl=1;dr=1;dt=1;z=2};
+logo={cls="bkplus";text='\uF03E';left=18;top=10;right=46;bottom=38;color=0x8CC8FF;dl=1;dt=1;font=LOGFONT(h=-20;name='FontAwesome');z=3};
+title={cls="bkplus";text="WinRimage";left=54;top=9;right=220;bottom=38;color=0xFFFFFF;dl=1;dt=1;font=LOGFONT(h=-19;weight=600);z=3};
+tabSingle={cls="plus";text="单图处理";left=250;top=48;right=390;bottom=84;color=0xDCE9F7;dl=1;dt=1;font=LOGFONT(h=-14;weight=600);iconStyle={align="left";font=LOGFONT(h=-15;name='FontAwesome');padding={left=12;top=1}};iconText='\uF03E';notify=1;textPadding={left=35};z=4};
+tabBatch={cls="plus";text="批量处理";left=390;top=48;right=530;bottom=84;color=0xDCE9F7;dl=1;dt=1;font=LOGFONT(h=-14;weight=600);iconStyle={align="left";font=LOGFONT(h=-15;name='FontAwesome');padding={left=12;top=1}};iconText='\uF0C9';notify=1;textPadding={left=35};z=5};
+tabPanel={cls="custom";left=0;top=84;right=1220;bottom=760;bgcolor=0xF4F6FA;db=1;dl=1;dr=1;dt=1;z=6}
+)
+/*}}*/
+
+var model=rimage.guiModel.create();
+var exePath=string.getenv("WINRIMAGE_RIMAGE_EXE") : io.fullpath("/res/rimage.exe");
+var tabs,singlePage,batchPage;
+var controller={
+    model=model;
+    exePath=exePath;
+    defaultOutputDirectory=io.fullpath("/output");
+    openSingle=function(path){
+        if(singlePage && singlePage.loadPath) singlePage.loadPath(path,false);
+        tabs.selIndex=1;
+    };
+    routeDrop=function(files){
+        files=rimage.guiModel.normalizeInputs(files);
+        if(!#files) return;
+        var hasDirectory=false;
+        for(i,path in files) if(fsys.isDir(path)){ hasDirectory=true; break; }
+        if(#files==1 && !hasDirectory){
+            if(rimage.guiModel.isSupportedImage(files[1])){
+                if(singlePage && singlePage.loadPath) singlePage.loadPath(files[1],false);
+                tabs.selIndex=1; return;
+            }
+        }
+        var added=rimage.guiModel.addInputs(model,files);
+        if(added){
+            if(batchPage && batchPage.updateList) batchPage.updateList();
+            tabs.selIndex=2;
+        }
+    }
+};
+
+tabs=win.ui.tabs(mainForm.tabSingle,mainForm.tabBatch);
+tabs.skin({
+    background={default=0x00FFFFFF;hover=0xFFEAF3FF;active=0xFFDCEBFA};
+    color={default=0xFF526174;hover=0xFF1769AA;};
+    checked={background={default=0xFFE8F1FC;};color={default=0xFF1769AA;};border={bottom=2;color=0xFF4C9AE8;}}
+});
+singlePage=tabs.loadForm(1,"/forms/single.aardio",controller);
+batchPage=tabs.loadForm(2,"/forms/batch.aardio",controller);
+tabs.onSelChange=function(tabIndex,tabButton,formPage){
+    if(tabIndex==2 && formPage.updateList) formPage.updateList();
+};
+tabs.selIndex=1;
+
+var chrome=win.ui.simpleWindow3(mainForm,-13,33,28,48,0xFF243447,0xFF1F5C91);
+chrome.titlebar.text="WinRimage";
+chrome.titlebar.align="left";
+chrome.titlebar.color=0xFFFFFF;
+chrome.titlebar.font=LOGFONT(h=-18;weight=600);
+chrome.titlebar.textPadding={left=18;top=1};
+chrome.skin({
+    background={hover=0x22FFFFFF;active=0x44FFFFFF;default=0x00000000};
+    color={hover=0xFFFFFFFF;active=0xFFFFFFFF;default=0xFFDCE9F7}
+});
+
+mainForm.onDropFiles=function(files){ controller.routeDrop(files); };
+mainForm.onClose=function(){
+    if(batchPage && batchPage.valid) batchPage.close();
+    if(singlePage && singlePage.valid) singlePage.close();
+};
+mainForm.show();
+win.loopMessage();

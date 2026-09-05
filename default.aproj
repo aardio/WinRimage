@@ -1,0 +1,9 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<project ver="10" name="WinRimage" libEmbed="true" icon="..." ui="winform" output="WinRimage.exe" CompanyName="单位名称" FileDescription="WinRimage" LegalCopyright="Copyright (C) 作者 2026" ProductName="WinRimage" InternalName="WinRimage" FileVersion="0.0.0.1" ProductVersion="0.0.0.1" publishDir="/dist/" dstrip="false">
+	<file name="main.aardio" path="main.aardio" comment="启动程序代码"/>
+	<folder name="资源文件" path="res" embed="true"/>
+	<folder name="窗体" path="forms" embed="true">
+		<file name="single.aardio" path="forms\single.aardio" comment="forms\single.aardio"/>
+		<file name="batch.aardio" path="forms\batch.aardio" comment="forms\batch.aardio"/>
+	</folder>
+</project>

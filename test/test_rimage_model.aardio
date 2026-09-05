@@ -1,0 +1,25 @@
+import process.rimage;
+import util.testRunner;
+
+var $ = util.testRunner("WinRimage process.rimage model");
+var output = io.fullpath("/test-output");
+var cfg = process.rimage.defaultConfig();
+cfg.outputDirectory = output;
+var normalized,err = process.rimage.validateConfig(cfg);
+$.test(normalized!=null,"默认配置可校验");
+$.expect(normalized.encoder,"mozjpeg","默认编码器");
+$.expect(normalized.quality,75,"默认质量");
+var args = process.rimage.buildArgs(normalized,["C:\\input dir\\photo.png"]);
+$.test(args!=null,"参数生成成功");
+$.expect(args[1],"mozjpeg","编码器位于参数首位");
+$.contains(args,"--directory=" ++ output,"输出目录参数");
+$.contains(args,"--","文件参数分隔符");
+var jxl = process.rimage.validateConfig({encoder="jpeg_xl";outputDirectory=output;quality=75});
+$.test(jxl!=null && jxl.quality==null,"jpeg_xl 清除不适用 quality");
+var badResize = process.rimage.validateConfig({encoder="mozjpeg";outputDirectory=output;resize=["abc100w"]});
+$.test(badResize==null,"非法 resize 被拒绝");
+var plan = process.rimage.plan({encoder="mozjpeg";outputDirectory=output;metadataPath=io.joinpath(output,"metadata.json")},[io.joinpath(output,"missing.png")]);
+$.test(plan!=null,"计划对象可生成");
+$.test(!plan.safe,"不存在输入时计划不安全");
+$.test(plan.errors[1].code=="missingInput","计划报告缺失输入");
+return $.report();

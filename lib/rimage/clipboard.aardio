@@ -1,0 +1,35 @@
+import win.clip.bitmap;
+import gdip.bitmap;
+
+namespace rimage.clipboard;
+
+/*****intellisense()
+rimage.clipboard = WinRimage 剪贴板图像适配层。
+rimage.clipboard.read() = 读取剪贴板图像，返回带 bitmap 和 dispose 的结果。
+rimage.clipboard.write(bitmap,options) = 将图像写入剪贴板；options.html=true 同时写入 HTML 图像。
+rimage.clipboard.writePng(bitmap) = 以 PNG 图像格式写入剪贴板。
+end intellisense*****/
+
+version = "0.1.0";
+
+read = function(){
+    var bmp,err=..win.clip.bitmap.read();
+    if(!bmp) return null,{code="read";message=err : "剪贴板中没有可读取的图像"};
+    var result={bitmap=bmp;width=bmp.width;height=bmp.height;bytes=null};
+    result.dispose=function(){ if(owner.bitmap) owner.bitmap.delete(); owner.bitmap=null; return true; };
+    return result;
+};
+
+write = function(bitmap,options){
+    options := {};
+    if(!..gdip.bitmap.is(bitmap)) return null,{code="bitmap";message="参数不是有效的 gdip.bitmap"};
+    if(options.html) ..win.clip.bitmap.writeHtml(bitmap);
+    elseif(options.png) ..win.clip.bitmap.writePng(bitmap);
+    else ..win.clip.bitmap.write(bitmap);
+    var verify=..win.clip.bitmap.read();
+    if(!verify) return null,{code="write";message="写入剪贴板后无法读回图像"};
+    verify.delete();
+    return true;
+};
+
+writePng = function(bitmap){ return write(bitmap,{png=true}); };

@@ -1,0 +1,194 @@
+import gdip.bitmap;
+import gdip.graphics;
+import fsys;
+import fsys.path;
+import process.rimage;
+
+namespace rimage.preview;
+
+/*****intellisense()
+rimage.preview = WinRimage 图像预览与图像信息模块。
+rimage.preview.inspect(source) = 返回图像尺寸、像素格式、透明度提示和文件大小等纯数据。
+rimage.preview.quick(source,options) = 使用 GDI+ 生成快速预览，支持 jpg/jpeg/png；返回 buffer、bitmap、尺寸和字节数。
+rimage.preview.exact(config,sourcePath,options) = 调用 process.rimage 在临时目录生成精确预览。
+rimage.preview.release(result) = 释放预览结果持有的位图和临时文件。
+end intellisense*****/
+
+version = "0.1.0";
+
+var imageExt = function(format){
+    var ext = ..string.lower(format : "jpg");
+    if(..string.startsWith(ext,"*.")) ext=..string.right(ext,-2);
+    if(..string.startsWith(ext,".")) ext=..string.right(ext,-1);
+    if(ext=="jpeg") ext="jpg";
+    return ext;
+};
+
+var loadOwned = function(source){
+    if(!source) return null,"图像来源为空";
+    var bmp;
+    if(..gdip.bitmap.is(source)) bmp=source.deepClone();
+    else bmp=..gdip.bitmap(source);
+    if(!bmp) return null,"无法载入图像";
+    return bmp;
+};
+
+var loadOutputBitmap = function(path,encoder){
+    var bmp=..gdip.bitmap(path);
+    if(bmp) return bmp;
+    if(encoder=="webp"){
+        import gdip.webp;
+        var webpBmp,webpErr=..gdip.webp.toBitmap(path);
+        if(webpBmp) return webpBmp;
+        return null,webpErr : "WebP 解码失败";
+    }
+    return null,"当前图像组件不支持显示 " ++ tostring(encoder) ++ " 输出";
+};
+
+var bitmapInfo = function(bmp,path){
+    var pixelFormat=bmp.getPixelFormat();
+    var result={
+        width=bmp.width;
+        height=bmp.height;
+        pixelFormat=pixelFormat;
+        hasAlpha=(pixelFormat & 0x40000)!=0;
+        frames=bmp.totalFrames;
+        path=path;
+        bytes=path && ..fsys.isFile(path) ? ..io.getSize(path) : null;
+    };
+    return result;
+};
+
+inspect = function(source){
+    var path;
+    if(type(source)=="string" && ..fsys.isFile(source)) path=..io.fullpath(source);
+    var bmp,err=loadOwned(source);
+    if(!bmp) return null,{code="load";message=err;path=path};
+    var result=bitmapInfo(bmp,path);
+    bmp.delete();
+    return result;
+};
+
+var outputSize = function(width,height,options){
+    if(options.width && options.height) return ..math.max(1,..math.floor(options.width)),..math.max(1,..math.floor(options.height));
+    if(options.width){
+        return ..math.max(1,..math.floor(options.width)),..math.max(1,..math.floor(height*options.width/width));
+    }
+    if(options.height){
+        return ..math.max(1,..math.floor(width*options.height/height)),..math.max(1,..math.floor(options.height));
+    }
+    if(options.scale){
+        return ..math.max(1,..math.floor(width*options.scale/100)),..math.max(1,..math.floor(height*options.scale/100));
+    }
+    return width,height;
+};
+
+release = function(result){
+    if(!result) return true;
+    if(result.bitmap) result.bitmap.delete();
+    if(result.sourceBitmap) result.sourceBitmap.delete();
+    if(result.workBitmap && result.workBitmap!==result.sourceBitmap) result.workBitmap.delete();
+    if(result.tempDirectory && ..fsys.isDir(result.tempDirectory)) ..fsys.delete(result.tempDirectory);
+    result.bitmap=null; result.sourceBitmap=null; result.workBitmap=null;
+    return true;
+};
+
+quick = function(source,options){
+    options := {};
+    var ext=imageExt(options.format : "jpg");
+    if(ext!="jpg" && ext!="png") return null,{code="format";message="快速预览目前支持 jpg/jpeg/png，其他格式请使用精确预览"};
+    var sourceBitmap,err=loadOwned(source);
+    if(!sourceBitmap) return null,{code="load";message=err};
+    var sourceInfo=bitmapInfo(sourceBitmap,type(source)=="string" ? ..io.fullpath(source) : null);
+    var width,height=outputSize(sourceBitmap.width,sourceBitmap.height,options);
+    var workBitmap=sourceBitmap;
+    if(width!=sourceBitmap.width || height!=sourceBitmap.height){
+        workBitmap=sourceBitmap.resize(width,height,options.resizeMode : "scale");
+        if(!workBitmap){ sourceBitmap.delete(); return null,{code="resize";message="无法缩放图像"}; }
+    }
+    var buffer;
+    if(ext=="jpg") buffer=workBitmap.saveToBuffer("*.jpg",options.quality : 75);
+    else buffer=workBitmap.saveToBuffer("*.png");
+    if(!buffer){
+        if(workBitmap!==sourceBitmap) workBitmap.delete();
+        sourceBitmap.delete();
+        return null,{code="encode";message="GDI+ 无法生成快速预览"};
+    }
+    var previewBitmap=..gdip.bitmap(buffer);
+    if(!previewBitmap){
+        if(workBitmap!==sourceBitmap) workBitmap.delete();
+        sourceBitmap.delete();
+        return null,{code="decode";message="无法重新载入快速预览"};
+    }
+    var result={
+        mode="quick";
+        format=ext;
+        quality=ext=="jpg" ? (options.quality : 75) : null;
+        buffer=buffer;
+        bytes=#buffer;
+        width=previewBitmap.width;
+        height=previewBitmap.height;
+        source=sourceInfo;
+        bitmap=previewBitmap;
+        sourceBitmap=sourceBitmap;
+        workBitmap=workBitmap;
+    };
+    result.dispose=function(){ return release(owner); };
+    return result;
+};
+
+exact = function(config,sourcePath,options){
+    options := {};
+    if(type(sourcePath)!="string" || !..fsys.isFile(sourcePath)) return null,{code="input";message="精确预览输入文件不存在"};
+    var tempDirectory=..io.tmpname("WinRimage-preview-");
+    if(!..io.createDir(tempDirectory)) return null,{code="tempDirectory";message="无法创建精确预览临时目录"};
+    var c=..table.clone(config : {});
+    c.outputDirectory=tempDirectory;
+    c.metadataPath=null;
+    c.overwrite=false;
+    c.preserveStructure=false;
+    c.suffix="preview";
+    var runResult,runError=..process.rimage.run(c,[sourcePath],{exePath=options.exePath : options.executable});
+    if(!runResult){ ..fsys.delete(tempDirectory); return null,runError; }
+    if(runResult.successCount!=1 || !runResult.outputs[1].exists){
+        ..fsys.delete(tempDirectory);
+        return null,{code="process";message="rimage 没有生成精确预览";result=runResult};
+    }
+    var outputPath=runResult.outputs[1].output;
+    var bmp,loadError=loadOutputBitmap(outputPath,c.encoder);
+    var outputInfo=runResult.metadata && runResult.metadata.images ? runResult.metadata.images[1] : null;
+    var result={
+        mode="exact";
+        format=c.encoder;
+        path=outputPath;
+        bytes=..io.getSize(outputPath);
+        width=bmp ? bmp.width : (outputInfo ? outputInfo.width : null);
+        height=bmp ? bmp.height : (outputInfo ? outputInfo.height : null);
+        bitmap=bmp;
+        displayable=bmp!=null;
+        displayError=loadError;
+        processResult=runResult;
+        tempDirectory=tempDirectory;
+    };
+    result.dispose=function(){ return release(owner); };
+    return result;
+};
+
+quickFromPath = function(path,options){ return quick(path,options); };
+
+namespace rimage.preview {
+    // keep namespace reopen explicit for IDE navigation
+}
+
+
+/*****details(折叠显示的短标题，不要包含空白字符)
+
+## 标题1 
+
+其他内容
+
+## 标题2 
+
+其他内容
+
+end details*****/

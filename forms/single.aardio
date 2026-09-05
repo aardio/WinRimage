@@ -1,0 +1,361 @@
+import win.ui;
+import fsys;
+import fsys.dlg;
+import fsys.dlg.dir;
+import rimage.guiModel;
+import rimage.preview;
+import rimage.clipboard;
+import rimage.uiValues;
+import process.rimage;
+import gdip.webp;
+import fonts.fontAwesome;
+
+var parent,controller = ...;
+/*DSG{{*/
+var winform = win.form(text="单图处理";right=1180;bottom=678;bgcolor=0xF4F6FA;border="none")
+winform.add(
+browseOutput={cls="plus";text="选择目录";left=854;top=522;right=972;bottom=552;bgcolor=0xFFFFFF;border={color=0xD5DCE5;radius=5;width=1};color=0x334155;dr=1;font=LOGFONT(h=-13);iconStyle={align="left";font=LOGFONT(h=-13;name='FontAwesome');padding={left=8}};iconText='\uF07C';notify=1;textPadding={left=28};z=32};
+clipboardRead={cls="plus";text="从剪贴板";left=130;top=12;right=248;bottom=46;bgcolor=0xFFFFFF;border={color=0xD5DCE5;radius=6;width=1};color=0x334155;dl=1;dt=1;font=LOGFONT(h=-13);iconStyle={align="left";font=LOGFONT(h=-14;name='FontAwesome');padding={left=10}};iconText='\uF0EA';notify=1;textPadding={left=31};z=24};
+copyOutput={cls="plus";text="复制输出";left=854;top=562;right=972;bottom=596;bgcolor=0xFFFFFF;border={color=0xD5DCE5;radius=5;width=1};color=0x334155;dr=1;font=LOGFONT(h=-13);iconStyle={align="left";font=LOGFONT(h=-13;name='FontAwesome');padding={left=8}};iconText='\uF0C5';notify=1;textPadding={left=28};z=34};
+dithering={cls="edit";text="100";left=950;top=372;right=1138;bottom=402;dl=1;dr=1;edge=1;z=22};
+ditheringLabel={cls="static";text="颜色抖动";left=854;top=376;right=944;bottom=400;dr=1;transparent=1;z=21};
+encoder={cls="combobox";left=950;top=68;right=1138;bottom=94;dl=1;dr=1;dt=1;edge=1;items={"mozjpeg","jpeg","webp","avif","png","oxipng","jpeg_xl","qoi","ppm","farbfeld"};mode="dropdownlist";z=4};
+encoderLabel={cls="static";text="输出格式";left=854;top=72;right=944;bottom=96;dr=1;dt=1;transparent=1;z=3};
+info={cls="static";text=" 未选择图片 · 拖放或打开一张图像";left=18;top=586;right=810;bottom=620;center=1;color=0x475569;db=1;dl=1;font=LOGFONT(h=-13);z=11};
+inputTab={cls="plus";text="原图";left=18;top=58;right=110;bottom=90;bgcolor=0xE8F1FC;border={color=0xB7D3F5;radius=6;width=1};color=0x1769AA;dl=1;dt=1;font=LOGFONT(h=-13;weight=600);notify=1;z=27};
+open={cls="plus";text="打开图片";left=18;top=12;right=122;bottom=46;bgcolor=0xFFFFFF;border={color=0xD5DCE5;radius=6;width=1};color=0x334155;dl=1;dt=1;font=LOGFONT(h=-13);iconStyle={align="left";font=LOGFONT(h=-14;name='FontAwesome');padding={left=10}};iconText='\uF03E';notify=1;textPadding={left=31};z=23};
+outputDir={cls="edit";left=950;top=410;right=1138;bottom=440;dl=1;dr=1;edge=1;z=26};
+outputDirLabel={cls="static";text="输出目录";left=854;top=414;right=944;bottom=438;dr=1;transparent=1;z=25};
+outputTab={cls="plus";text="输出预览";left=114;top=58;right=226;bottom=90;bgcolor=0xFFFFFF;border={color=0xD5DCE5;radius=6;width=1};color=0x64748B;dl=1;dt=1;font=LOGFONT(h=-13);notify=1;z=28};
+preview={cls="plus";left=18;top=96;right=810;bottom=574;bgcolor=0xE3EAF2;border={color=0xCBD5E1;radius=10;width=1};color=0x64748B;db=1;dl=1;dt=1;font=LOGFONT(h=-16);z=9};
+previewOutput={cls="plus";text="生成预览";left=980;top=522;right=1138;bottom=552;bgcolor=0xE8F1FC;border={color=0xB7D3F5;radius=5;width=1};color=0x1769AA;dr=1;font=LOGFONT(h=-13;weight=600);iconStyle={align="left";font=LOGFONT(h=-13;name='FontAwesome');padding={left=12}};iconText='\uF06E';notify=1;textPadding={left=34};z=33};
+processImage={cls="plus";text="处理此图";left=980;top=562;right=1138;bottom=616;bgcolor=0x2474D2;border={color=0x2474D2;radius=7;width=1};color=0xFFFFFF;dr=1;font=LOGFONT(h=-15;weight=600);iconStyle={align="left";font=LOGFONT(h=-14;name='FontAwesome');padding={left=14}};iconText='\uF1D8';notify=1;textPadding={left=39};z=35};
+quality={cls="edit";text="75";left=950;top=106;right=1138;bottom=136;dl=1;dr=1;dt=1;edge=1;z=6};
+qualityLabel={cls="static";text="质量";left=854;top=110;right=944;bottom=134;dr=1;dt=1;transparent=1;z=5};
+quantization={cls="edit";text="100";left=950;top=334;right=1138;bottom=364;dl=1;dr=1;edge=1;z=20};
+quantizationEnabled={cls="checkbox";text="启用颜色量化";left=854;top=302;right=1138;bottom=328;bgcolor=0xFFFFFF;dr=1;z=18};
+quantizationLabel={cls="static";text="量化程度";left=854;top=338;right=944;bottom=362;dr=1;transparent=1;z=19};
+resizeDirection={cls="combobox";left=950;top=258;right=1138;bottom=284;dl=1;dr=1;dt=1;edge=1;items={"允许放大与缩小","仅缩小，不放大","仅放大，不缩小"};mode="dropdownlist";z=17};
+resizeDirectionLabel={cls="static";text="缩放方向";left=854;top=262;right=944;bottom=286;dr=1;dt=1;transparent=1;z=16};
+resizeFilter={cls="combobox";left=950;top=220;right=1138;bottom=246;dl=1;dr=1;dt=1;edge=1;items={"lanczos3","nearest","box","bilinear","hamming","catmull-rom","mitchell"};mode="dropdownlist";z=15};
+resizeFilterLabel={cls="static";text="缩放算法";left=854;top=224;right=944;bottom=248;dr=1;dt=1;transparent=1;z=14};
+resizeMode={cls="combobox";left=950;top=144;right=1138;bottom=170;dl=1;dr=1;dt=1;edge=1;items={"原尺寸","宽度","高度","最长边","最短边","百分比","倍数","固定尺寸"};mode="dropdownlist";z=8};
+resizeModeLabel={cls="static";text="尺寸";left=854;top=148;right=944;bottom=172;dr=1;dt=1;transparent=1;z=7};
+resizeValue={cls="edit";left=950;top=182;right=1138;bottom=212;dl=1;dr=1;dt=1;edge=1;z=12};
+resizeValueLabel={cls="static";text="尺寸值";left=854;top=186;right=944;bottom=210;dr=1;dt=1;transparent=1;z=10};
+settingsBg={cls="plus";left=830;top=12;right=1162;bottom=666;bgcolor=0xFFFFFF;border={color=0xD5DCE5;radius=10;width=1};db=1;dr=1;dt=1;z=1};
+settingsTitle={cls="bkplus";text="处理参数";left=854;top=28;right=1138;bottom=54;align="left";color=0x1E293B;dr=1;dt=1;font=LOGFONT(h=-17;weight=600);z=2};
+status={cls="plus";text="请选择一张图片开始";left=18;top=632;right=810;bottom=666;align="left";bgcolor=0xE8EEF5;border={color=0xD5DCE5;radius=6;width=1};color=0x475569;db=1;dl=1;font=LOGFONT(h=-13);textPadding={left=5};z=13};
+strip={cls="checkbox";text="移除元数据";left=854;top=484;right=1138;bottom=510;bgcolor=0xFFFFFF;dr=1;z=31};
+suffix={cls="edit";text="-optimized";left=950;top=444;right=1138;bottom=474;dl=1;dr=1;edge=1;z=30};
+suffixLabel={cls="static";text="文件后缀";left=854;top=448;right=944;bottom=472;dr=1;transparent=1;z=29}
+)
+/*}}*/
+
+var inputPath=null;
+var temporaryInput=false;
+var inputPreview=null;
+var refreshPlan;
+var outputExact=null;
+var outputBitmap=null;
+var outputPath=null;
+var outputDirty=true;
+var viewMode="input";
+var task=null;
+var taskTimer=null;
+var controller=controller : {};
+var exePath=controller.exePath : string.getenv("WINRIMAGE_RIMAGE_EXE") : io.fullpath("/res/rimage.exe");
+
+winform.encoder.selIndex=1;
+winform.resizeMode.selIndex=1;
+winform.resizeFilter.selIndex=1;
+winform.resizeDirection.selIndex=1;
+winform.quantizationEnabled.checked=false;
+winform.outputDir.text=controller.defaultOutputDirectory : io.fullpath("/output");
+winform.copyOutput.disabled=true;
+
+var releaseOutput=function(){
+    if(outputExact){ outputExact.dispose(); outputExact=null; }
+    if(outputBitmap){ outputBitmap.delete(); outputBitmap=null; }
+    outputPath=null;
+    winform.outputExact=null;
+    winform.outputReady=false;
+    winform.outputWidth=null;
+    winform.outputHeight=null;
+    winform.outputBytes=null;
+    winform.copyOutput.disabled=true;
+};
+
+var releaseInput=function(){
+    if(inputPreview){ inputPreview.dispose(); inputPreview=null; }
+    if(temporaryInput && inputPath && fsys.isFile(inputPath)) io.remove(inputPath);
+    inputPath=null; temporaryInput=false;
+    winform.inputPath=null; winform.inputLoaded=false;
+};
+
+var setPreviewMessage=function(text){
+    winform.preview.background=0xFFE3EAF2;
+    winform.preview.text=text;
+    winform.preview.iconText=null;
+};
+
+var errorText=function(err){
+    if(!err) return "未知错误";
+    var text=tostring(err.message : err);
+    if(err.code) text="[" ++ tostring(err.code) ++ "] " ++ text;
+    if(err.path) text ++= '\r\n路径：' ++ tostring(err.path);
+    if(err.plan && err.plan.errors){
+        for(i,item in err.plan.errors){
+            if(i==1) text ++= '\r\n原因：' ++ tostring(item.message);
+            elseif(i<=5) text ++= '\r\n- ' ++ tostring(item.message);
+        }
+        if(#err.plan.errors>5) text ++= '\r\n- 以及其他 ' ++ tostring(#err.plan.errors-5) ++ ' 个问题';
+    }
+    if(err.result && err.result.stderr && #err.result.stderr) text ++= '\r\n' ++ string.trim(err.result.stderr);
+    return text;
+};
+
+var executableError=function(){
+    var info,err=process.rimage.detect(exePath);
+    return info,err;
+};
+
+var showInput=function(){
+    viewMode="input";
+    winform.inputTab.background=0xFFE8F1FC;
+    winform.inputTab.color=0xFF1769AA;
+    winform.outputTab.background=0xFFFFFFFF;
+    winform.outputTab.color=0xFF64748B;
+    if(!inputPreview){ setPreviewMessage("请打开图片，或将图片拖到这里"); return; }
+    winform.preview.text=null;
+    winform.preview.iconText=null;
+    winform.preview.background=inputPreview.bitmap;
+    winform.preview.repeat="auto";
+};
+
+var showOutput=function(){
+    viewMode="output";
+    winform.inputTab.background=0xFFFFFFFF;
+    winform.inputTab.color=0xFF64748B;
+    winform.outputTab.background=0xFFE8F1FC;
+    winform.outputTab.color=0xFF1769AA;
+    if(outputBitmap){
+        winform.preview.text=null;
+        winform.preview.iconText=null;
+        winform.preview.background=outputBitmap;
+        winform.preview.repeat="auto";
+    }
+    elseif(outputExact && outputExact.displayable){
+        winform.preview.text=null;
+        winform.preview.iconText=null;
+        winform.preview.background=outputExact.bitmap;
+        winform.preview.repeat="auto";
+    }
+    else setPreviewMessage(outputDirty ? "点击“生成预览”查看当前效果" : "当前输出无法显示");
+};
+
+var updateInfo=function(){
+    if(!inputPath){ winform.info.text="未选择图片 · 拖放或打开一张图像"; return; }
+    var info,err=rimage.preview.inspect(inputPath);
+    if(info){
+        var name=io.splitpath(inputPath).file;
+        winform.info.text=string.format("原图 · %s · %dx%d · %s",name,info.width,info.height,rimage.guiModel.formatBytes(info.bytes));
+    }
+    else winform.info.text="无法读取图像信息：" ++ errorText(err);
+};
+
+var invalidateOutput=function(){
+    outputDirty=true;
+    releaseOutput();
+    if(viewMode=="output") showOutput();
+};
+
+var loadPath=function(path,isTemp){
+    path=rimage.guiModel.normalizePath(path);
+    if(!path || !rimage.guiModel.isSupportedImage(path)) return null,"不支持的图像文件";
+    releaseInput(); releaseOutput();
+    inputPath=path; temporaryInput=isTemp===true;
+    winform.inputPath=inputPath;
+    var quick,err=rimage.preview.quick(inputPath,{format="jpg";quality=90;scale=100});
+    if(!quick){ setPreviewMessage("预览失败：" ++ tostring(err.message : err)); return null,err; }
+    inputPreview=quick;
+    winform.inputLoaded=true;
+    outputDirty=true; viewMode="input";
+    updateInfo(); showInput();
+    winform.status.text="已载入图片，可调整参数或直接处理";
+    winform.status.background=0xFFE8EEF5;
+    refreshPlan();
+    return true;
+};
+
+winform.loadPath=loadPath;
+
+var loadClipboard=function(){
+    var clip,err=rimage.clipboard.read();
+    if(!clip){ winform.msgbox(tostring(err.message : err),"剪贴板没有图像","info"); return; }
+    var path=io.tmpname("WinRimage-clipboard-",".png");
+    var ok,saveErr=clip.bitmap.save(path);
+    clip.dispose();
+    if(!ok){ winform.msgbox(tostring(saveErr : "无法保存剪贴板图像"),"读取失败","error"); return; }
+    loadPath(path,true);
+};
+
+var values=function(){ return rimage.uiValues.read(winform); };
+var config=function(){ return rimage.guiModel.makeConfig(controller.model,values()); };
+
+refreshPlan=function(){
+    if(!inputPath) return;
+    var p,err=process.rimage.plan(config(),[inputPath]);
+    if(!p || !p.safe){
+        var detail=err;
+        if(!detail && p && p.errors[1]) detail=p.errors[1];
+        if(!detail) detail={message="请检查设置"};
+        winform.status.text="参数有误：" ++ errorText(detail);
+        winform.status.background=0xFFFFE8E8;
+    }
+    else{
+        var info,exeErr=executableError();
+        if(!info){
+            winform.status.text="无法执行：" ++ errorText(exeErr);
+            winform.status.background=0xFFFFE8E8;
+        }
+    }
+    return p,err;
+};
+
+var renderOutput=function(){
+    if(!inputPath){ winform.msgbox("请先打开一张图片。","预览输出","info"); return; }
+    releaseOutput();
+    winform.previewOutput.disabledText="生成中...";
+    winform.status.text="正在生成当前参数的输出预览...";
+    winform.status.background=0xFFFFF4D6;
+    var exact,err=rimage.preview.exact(config(),inputPath,{exePath=exePath});
+    winform.previewOutput.disabledText=null;
+    if(!exact){
+        outputDirty=true; showOutput();
+        winform.status.text="预览失败：" ++ errorText(err);
+        winform.status.background=0xFFFFE8E8;
+        return;
+    }
+    outputExact=exact; winform.outputExact=exact;
+    winform.outputReady=true; winform.outputWidth=exact.width; winform.outputHeight=exact.height; winform.outputBytes=exact.bytes;
+    outputDirty=false; showOutput();
+    if(exact.displayable) winform.status.text=string.format("预览完成：%s · %dx%d · %s",exact.format,exact.width,exact.height,rimage.guiModel.formatBytes(exact.bytes));
+    else winform.status.text="输出已生成，但当前格式无法在此处显示：" ++ tostring(exact.displayError : "无解码器");
+    winform.status.background=0xFFE5F7EC;
+};
+
+var updateResizeControls=function(){
+    var original=winform.resizeMode.selIndex==1;
+    winform.resizeValue.disabled=original;
+    winform.resizeFilter.disabled=original;
+    winform.resizeDirection.disabled=original;
+};
+
+var refreshTask=function(){
+    if(!task) return;
+    var snap=task.snapshot(),state=snap.state : "starting";
+    if(state=="starting" || state=="running" || state=="cancelling"){
+        winform.status.text="正在处理此图…（" ++ state ++ "）";
+        winform.status.background=0xFFFFF4D6;
+        return;
+    }
+    if(snap.error){
+        winform.status.text="处理失败：" ++ errorText(snap.error);
+        winform.status.background=0xFFFFE8E8;
+    }
+    elseif(snap.result){
+        var r=snap.result,item=r.outputs[1];
+        if(item && item.exists){
+            outputPath=item.output;
+            outputBitmap=gdip.bitmap(outputPath);
+            if(!outputBitmap && r.config && r.config.encoder=="webp") outputBitmap=gdip.webp.toBitmap(outputPath);
+            outputDirty=false; winform.outputReady=outputBitmap!=null; winform.outputWidth=outputBitmap && outputBitmap.width; winform.outputHeight=outputBitmap && outputBitmap.height; winform.outputBytes=item.size; winform.copyOutput.disabled=!outputBitmap;
+            showOutput();
+            winform.status.text=string.format("处理完成：%s · 输出 %s",rimage.guiModel.formatBytes(item.size),tostring(outputPath));
+            winform.status.background=0xFFE5F7EC;
+        }
+        else {
+            winform.status.text="处理完成，但没有找到输出文件";
+            winform.status.background=0xFFFFE8E8;
+        }
+    }
+    else {
+        winform.status.text="任务状态：" ++ state;
+        winform.status.background=0xFFFFE8E8;
+    }
+    winform.processImage.disabled=false;
+    if(taskTimer){ winform.clearInterval(taskTimer); taskTimer=null; }
+    task.close(); task=null;
+};
+
+winform.open.oncommand=function(){
+    var path=fsys.dlg.open("图像|*.jpg;*.jpeg;*.png;*.webp;*.avif;*.bmp;*.tif;*.tiff;*.jxl|所有文件|*.*|","打开图片");
+    if(path) loadPath(path,false);
+};
+winform.clipboardRead.oncommand=loadClipboard;
+winform.inputTab.oncommand=showInput;
+winform.outputTab.oncommand=function(){ if(outputDirty) renderOutput(); else showOutput(); };
+winform.previewOutput.oncommand=renderOutput;
+winform.copyOutput.oncommand=function(){
+    var bmp=outputBitmap : (outputExact && outputExact.bitmap);
+    if(bmp && rimage.clipboard.write(bmp,{png=true})){
+        winform.status.text="输出图像已复制到剪贴板";
+        winform.status.background=0xFFE5F7EC;
+    }
+};
+winform.browseOutput.oncommand=function(){
+    var dir=fsys.dlg.dir(winform.outputDir.text,winform,"选择输出目录");
+    if(dir) winform.outputDir.text=dir;
+};
+winform.encoder.onSelChange=function(){ rimage.uiValues.syncEncoder(winform); invalidateOutput(); refreshPlan(); };
+winform.quantizationEnabled.oncommand=function(){ rimage.uiValues.syncPreprocess(winform); invalidateOutput(); refreshPlan(); };
+winform.resizeMode.onSelChange=function(){ updateResizeControls(); invalidateOutput(); refreshPlan(); };
+winform.resizeFilter.onSelChange=function(){ invalidateOutput(); refreshPlan(); };
+winform.resizeDirection.onSelChange=function(){ invalidateOutput(); refreshPlan(); };
+winform.quality.onKillFocus=function(){ invalidateOutput(); refreshPlan(); };
+winform.resizeValue.onKillFocus=function(){ invalidateOutput(); refreshPlan(); };
+winform.quantization.onKillFocus=function(){ invalidateOutput(); refreshPlan(); };
+winform.dithering.onKillFocus=function(){ invalidateOutput(); refreshPlan(); };
+winform.outputDir.onKillFocus=function(){ refreshPlan(); };
+winform.suffix.onKillFocus=function(){ invalidateOutput(); refreshPlan(); };
+winform.strip.oncommand=function(){ invalidateOutput(); refreshPlan(); };
+
+winform.processImage.oncommand=function(){
+    if(task) return;
+    if(!inputPath){ winform.msgbox("请先打开一张图片。","无法处理","info"); return; }
+    var c=config();
+    var p,err=process.rimage.plan(c,[inputPath]);
+    if(!p || !p.safe){
+        var detail=err;
+        if(!detail && p && p.errors[1]) detail=p.errors[1];
+        if(!detail) detail={message="执行计划未通过安全检查"};
+        winform.msgbox(errorText(detail),"无法处理","warn");
+        return;
+    }
+    var exeInfo,exeErr=executableError();
+    if(!exeInfo){ winform.msgbox(errorText(exeErr),"无法处理","error"); return; }
+    var newTask,taskErr=process.rimage.runAsync(c,[inputPath],{exePath=exePath});
+    if(!newTask){ winform.msgbox(tostring(taskErr.message : taskErr),"启动失败","error"); return; }
+    task=newTask; winform.processImage.disabled=true;
+    winform.status.text="正在启动 rimage…"; winform.status.background=0xFFFFF4D6;
+    taskTimer=winform.setInterval(refreshTask,120);
+};
+
+winform.onDropFiles=function(files){
+    if(controller.routeDrop) controller.routeDrop(files);
+    elseif(#files==1) loadPath(files[1],false);
+};
+
+rimage.uiValues.syncEncoder(winform);
+rimage.uiValues.syncPreprocess(winform);
+updateResizeControls();
+setPreviewMessage("请打开图片，或将图片拖到这里");
+
+winform.onDestroy=function(){
+    if(task){ task.cancel(); var s=task.wait(3000); if(s) task.close(); task=null; }
+    if(taskTimer){ winform.clearInterval(taskTimer); taskTimer=null; }
+    releaseInput(); releaseOutput();
+};
+
+return winform;

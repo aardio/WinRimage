@@ -1,0 +1,7 @@
+import process.rimage;
+import util.testRunner;
+var $ = util.testRunner("WinRimage model test entry");
+var config = process.rimage.defaultConfig();
+config.outputDirectory = io.fullpath("/test-output");
+$.test(process.rimage.validateConfig(config)!=null,"library import and default validation");
+return $.report();

@@ -1,0 +1,22 @@
+import rimage.preview;
+import util.testRunner;
+
+var $ = util.testRunner("WinRimage preview model");
+var source=gdip.bitmap(32,24);
+source.setPixel(1,1,0xFFFF0000);
+source.setPixel(2,2,0x0000FF00);
+var sourceInfo=rimage.preview.inspect(source);
+$.test(sourceInfo!=null,"inspect 位图");
+$.expect(sourceInfo.width,32,"inspect 宽度");
+$.expect(sourceInfo.height,24,"inspect 高度");
+$.test(sourceInfo.hasAlpha,"inspect alpha 像素格式提示");
+var jpg,err=rimage.preview.quick(source,{format="jpg";quality=80;scale=50});
+$.test(jpg!=null,"JPEG 快速预览");
+if(jpg){ $.expect(jpg.width,16,"JPEG 预览宽度"); $.expect(jpg.height,12,"JPEG 预览高度"); $.test(jpg.bytes>0,"JPEG 预览字节数"); $.test(jpg.bitmap!=null,"JPEG 预览位图"); jpg.dispose(); }
+var png=rimage.preview.quick(source,{format="png";width=20;height=10});
+$.test(png!=null,"PNG 快速预览");
+if(png){ $.expect(png.width,20,"PNG 预览宽度"); $.expect(png.height,10,"PNG 预览高度"); png.dispose(); }
+var unsupported,unsupportedError=rimage.preview.quick(source,{format="webp"});
+$.test(unsupported==null && unsupportedError.code=="format","快速预览拒绝未验证格式");
+source.delete();
+return $.report();
