@@ -9,13 +9,13 @@ import rimage.guiModel;
 /*DSG{{*/
 mainForm = win.form(text="WinRimage";right=1220;bottom=760;bgcolor=0xF4F6FA;border="none")
 mainForm.add(
-header={cls="bkplus";left=0;top=0;right=1220;bottom=48;bgcolor=0x243447;dl=1;dr=1;dt=1;z=1};
+header={cls="bkplus";left=0;top=0;right=1220;bottom=48;bgcolor=0x915C1F;dl=1;dr=1;dt=1;z=1};
+logo={cls="bkplus";text='\uF108';left=18;top=10;right=46;bottom=38;color=0x8CC8FF;dl=1;dt=1;font=LOGFONT(h=-15;name='FontAwesome');z=3};
 tabBar={cls="bkplus";left=0;top=48;right=1220;bottom=84;bgcolor=0xFFFFFF;dl=1;dr=1;dt=1;z=2};
-logo={cls="bkplus";text='\uF03E';left=18;top=10;right=46;bottom=38;color=0x8CC8FF;dl=1;dt=1;font=LOGFONT(h=-20;name='FontAwesome');z=3};
-title={cls="bkplus";text="WinRimage";left=54;top=9;right=220;bottom=38;color=0xFFFFFF;dl=1;dt=1;font=LOGFONT(h=-19;weight=600);z=3};
-tabSingle={cls="plus";text="单图处理";left=250;top=48;right=390;bottom=84;color=0xDCE9F7;dl=1;dt=1;font=LOGFONT(h=-14;weight=600);iconStyle={align="left";font=LOGFONT(h=-15;name='FontAwesome');padding={left=12;top=1}};iconText='\uF03E';notify=1;textPadding={left=35};z=4};
-tabBatch={cls="plus";text="批量处理";left=390;top=48;right=530;bottom=84;color=0xDCE9F7;dl=1;dt=1;font=LOGFONT(h=-14;weight=600);iconStyle={align="left";font=LOGFONT(h=-15;name='FontAwesome');padding={left=12;top=1}};iconText='\uF0C9';notify=1;textPadding={left=35};z=5};
-tabPanel={cls="custom";left=0;top=84;right=1220;bottom=760;bgcolor=0xF4F6FA;db=1;dl=1;dr=1;dt=1;z=6}
+tabBatch={cls="plus";text="批量处理";left=390;top=48;right=530;bottom=84;dl=1;dt=1;font=LOGFONT(h=-14;weight=600);iconStyle={align="left";font=LOGFONT(h=-15;name='FontAwesome');padding={left=12;top=1}};iconText='\uF0C9';notify=1;textPadding={left=35};transparent=1;z=6};
+tabPanel={cls="custom";left=0;top=84;right=1220;bottom=760;bgcolor=0xF4F6FA;db=1;dl=1;dr=1;dt=1;z=7};
+tabSingle={cls="plus";text="单图处理";left=250;top=48;right=390;bottom=84;dl=1;dt=1;font=LOGFONT(h=-14;weight=600);iconStyle={align="left";font=LOGFONT(h=-15;name='FontAwesome');padding={left=12;top=1}};iconText='\uF03E';notify=1;textPadding={left=35};transparent=1;z=5};
+title={cls="bkplus";text="WinRimage";left=55;top=8;right=221;bottom=37;align="left";color=0xFFFFFF;dl=1;dt=1;font=LOGFONT(h=-15;weight=600);z=4}
 )
 /*}}*/
 
@@ -62,12 +62,17 @@ tabs.onSelChange=function(tabIndex,tabButton,formPage){
 };
 tabs.selIndex=1;
 
-var chrome=win.ui.simpleWindow3(mainForm,-13,33,28,48,0xFF243447,0xFF1F5C91);
+var chrome=win.ui.simpleWindow3(mainForm,-13,33,28,48,0xFF1A2A3A,0xFF1F5C91);// 深邃暗蓝灰 → 经典钢蓝
 chrome.titlebar.text="WinRimage";
 chrome.titlebar.align="left";
+chrome.titlebar.valign="top";
 chrome.titlebar.color=0xFFFFFF;
-chrome.titlebar.font=LOGFONT(h=-18;weight=600);
-chrome.titlebar.textPadding={left=18;top=1};
+chrome.titlebar.font=LOGFONT(h=-15);
+chrome.titlebar.textPadding={left=43;top=10};
+chrome.titlebar.iconStyle={align="left";valign="top";font=LOGFONT(h=-15;name='FontAwesome');padding={left=14;top=15}};
+chrome.titlebar.iconText='\uF108';
+chrome.titlebar.iconColor=0xFF60A5FA;
+ 
 chrome.skin({
     background={hover=0x22FFFFFF;active=0x44FFFFFF;default=0x00000000};
     color={hover=0xFFFFFFFF;active=0xFFFFFFFF;default=0xFFDCE9F7}
