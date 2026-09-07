@@ -4,9 +4,9 @@ import rimage.guiModel;
 var $=util.testRunner("WinRimage GUI model");
 var model=rimage.guiModel.create();
 $.test(type(model.files)=="table" && #model.files==0,"创建空队列");
-var added=rimage.guiModel.addFiles(model,["C:\\does-not-exist.png"]);
+var added=rimage.guiModel.addFiles(model,["C:\does-not-exist.png"]);
 $.expect(added,0,"拒绝不存在的输入");
-var c=rimage.guiModel.makeConfig(model,{encoder="mozjpeg";outputDirectory="C:\\temp";suffix="updated";quality="80"});
+var c=rimage.guiModel.makeConfig(model,{encoder="mozjpeg";outputDirectory="C:\temp";suffix="updated";quality="80"});
 $.expect(c.encoder,"mozjpeg","生成默认编码器配置");
 $.expect(c.quality,80,"转换质量文本");
 

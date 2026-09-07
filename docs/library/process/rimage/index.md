@@ -7,7 +7,7 @@ WinRimage 对 rimage 0.13.0 命令行工具的纯 aardio 封装。当前覆盖�
 ```aardio
 import process.rimage;
 var config = process.rimage.defaultConfig();
-config.outputDirectory = "C:\\output";
+config.outputDirectory = "C:\output";
 ```
 
 ## 设计原则
@@ -28,19 +28,19 @@ config.outputDirectory = "C:\\output";
 ```aardio
 import process.rimage;
 var config = process.rimage.defaultConfig();
-config.outputDirectory = "C:\\output";
+config.outputDirectory = "C:\output";
 config.quality = 78;
 config.suffix = "_optimized";
 config.resize = ["1600w", "75%"];
 var checked,err = process.rimage.validateConfig(config);
 if(!checked) return err;
-var args = process.rimage.buildArgs(checked,["C:\\images\\photo.png"]);
+var args = process.rimage.buildArgs(checked,["C:\images\photo.png"]);
 ```
 
 ## 检测 rimage
 
 ```aardio
-var exe = "C:\\tools\\rimage.exe";
+var exe = "C:\tools\rimage.exe";
 var info,err = process.rimage.detect(exe);
 if(!info) return err;
 ```
@@ -50,7 +50,7 @@ if(!info) return err;
 ## 执行前计划
 
 ```aardio
-var plan,err = process.rimage.plan(config,["C:\\images\\photo.png"]);
+var plan,err = process.rimage.plan(config,["C:\images\photo.png"]);
 if(!plan) return err;
 if(!plan.safe) return plan.errors;
 ```
@@ -60,8 +60,8 @@ if(!plan.safe) return plan.errors;
 ## 同步执行
 
 ```aardio
-var result,err = process.rimage.run(config,["C:\\images\\photo.png"],{
-    exePath = "C:\\tools\\rimage.exe"
+var result,err = process.rimage.run(config,["C:\images\photo.png"],{
+    exePath = "C:\tools\rimage.exe"
 });
 if(!result) return err;
 ```
@@ -73,8 +73,8 @@ if(!result) return err;
 GUI 长任务应使用 `runAsync()`，不要在界面线程直接调用同步 `run()`：
 
 ```aardio
-var task = process.rimage.runAsync(config,["C:\\images\\photo.png"],{
-    exePath = "C:\\tools\\rimage.exe"
+var task = process.rimage.runAsync(config,["C:\images\photo.png"],{
+    exePath = "C:\tools\rimage.exe"
 });
 
 var result,err = task.wait(30000);

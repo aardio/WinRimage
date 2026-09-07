@@ -9,7 +9,7 @@ var normalized,err = process.rimage.validateConfig(cfg);
 $.test(normalized!=null,"默认配置可校验");
 $.expect(normalized.encoder,"mozjpeg","默认编码器");
 $.expect(normalized.quality,75,"默认质量");
-var args = process.rimage.buildArgs(normalized,["C:\\input dir\\photo.png"]);
+var args = process.rimage.buildArgs(normalized,["C:\input dir\photo.png"]);
 $.test(args!=null,"参数生成成功");
 $.expect(args[1],"mozjpeg","编码器位于参数首位");
 $.contains(args,"--directory=" ++ output,"输出目录参数");
